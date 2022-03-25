@@ -35,6 +35,7 @@ import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import com.yunuskocgurbuz.kotlincomposecurrencyexchanger.R
 import com.yunuskocgurbuz.kotlincomposecurrencyexchanger.entity.CurrencyEntity
 import com.yunuskocgurbuz.kotlincomposecurrencyexchanger.model.Rates
+import com.yunuskocgurbuz.kotlincomposecurrencyexchanger.util.Constants.commission_fee
 import com.yunuskocgurbuz.kotlincomposecurrencyexchanger.util.CurrencyName
 import com.yunuskocgurbuz.kotlincomposecurrencyexchanger.viewmodel.CurrencyListViewModel
 import com.yunuskocgurbuz.kotlincomposecurrencyexchanger.viewmodel.CurrencySQLiteViewModel
@@ -49,6 +50,8 @@ fun CurrencyListScreen(navController: NavController) {
     val currencySqliteViewModel: CurrencySQLiteViewModel = viewModel(
         factory = CurrencyViewModelFactory(context.applicationContext as Application)
     )
+
+
 
     Surface(
         color = Color.White,
@@ -71,7 +74,8 @@ fun CurrencyListScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(25.dp))
             Button(onClick = {
                     currencySqliteViewModel.AddCurrency(insertCurrencyData)
-            }) {
+            },modifier = Modifier.padding(15.dp)
+            ) {
                 Text(text = "Upload money")
             }
             Spacer(modifier = Modifier.height(15.dp))
@@ -130,7 +134,12 @@ fun ExchangeCurrency(currencyList: List<Rates>) {
                 .padding(15.dp)
 
         )
-        Spacer(modifier = Modifier.height(25.dp))  
+        Spacer(modifier = Modifier.height(5.dp))
+        Text(text = "No commission fee is charged for the first 5 transactions.",
+            modifier = Modifier.padding(15.dp)
+        )
+        Spacer(modifier = Modifier.height(25.dp))
+
         
         Column(modifier = Modifier.padding(15.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
@@ -155,7 +164,8 @@ fun ExchangeCurrency(currencyList: List<Rates>) {
                         Spacer(modifier = Modifier.height(15.dp))
 
                         Text(text = receive.toString(),
-                            modifier = Modifier.padding(15.dp)
+                            modifier = Modifier
+                                .padding(15.dp)
                                 .size(50.dp, 20.dp)
 
                         )
@@ -165,11 +175,11 @@ fun ExchangeCurrency(currencyList: List<Rates>) {
 
 
                     Column {
-                        CurrencySpinner(currencyNameList, "EUR")
+                        CurrencySpinner(currencyNameListSell, "EUR")
 
                         Spacer(modifier = Modifier.height(15.dp))
 
-                        CurrencySpinner(currencyNameList, "USD")
+                        CurrencySpinner(currencyNameListReceive, "USD")
                         currencyChange = CurrencyName.currencyName
                         for(item in currencyList){
                             if(!text.isNullOrEmpty()){
@@ -189,6 +199,8 @@ fun ExchangeCurrency(currencyList: List<Rates>) {
             Spacer(modifier = Modifier.height(30.dp))
             SubmitExchange(textSell.toDouble(), receive , currencyChange)
 
+
+
         }
         
     }
@@ -196,15 +208,17 @@ fun ExchangeCurrency(currencyList: List<Rates>) {
 }
 
 
+var commission = 5
 val insertCurrencyData = listOf(
-    CurrencyEntity(1, "EUR", 1000.0),
-    CurrencyEntity(2, "USD", 0.0),
-    CurrencyEntity(3, "BGN", 0.0),
-    CurrencyEntity(4, "JEP", 0.0),
-    CurrencyEntity(5, "QAR", 0.0)
+    CurrencyEntity(1, "EUR", 1000.0, commission),
+    CurrencyEntity(2, "USD", 0.0, commission),
+    CurrencyEntity(3, "BGN", 0.0, commission),
+    CurrencyEntity(4, "JEP", 0.0, commission),
+    CurrencyEntity(5, "QAR", 0.0, commission)
 )
 
-val currencyNameList = listOf<String>("EUR", "USD")
+val currencyNameListSell = listOf<String>("EUR")
+val currencyNameListReceive = listOf<String>("USD")
 
 fun GetCurrency(currencyName: String, currencyList: Rates): Double{
 
@@ -342,6 +356,7 @@ fun SubmitExchange(
     var newSell = 0.0
     var newReceive = 0.0
     var note = ""
+    var commission_new by remember { mutableStateOf(0) }
 
 
 
@@ -350,30 +365,42 @@ fun SubmitExchange(
             val openDialog = remember { mutableStateOf(false)  }
 
             Button(onClick = {
+                if(sell > 0){
+                    for(i in getAllCurrency){
+                        if(i.currency.equals("EUR")){
+                            commission_new = i.commission!!
+                            println(commission_new)
+                            var getAmount = i.amount!!
+                            if(i.amount != 0.0 && getAmount >= sell){
+                                if(commission_new > 0){
+                                    newSell = getAmount - sell
+                                }else{
+                                    newSell = getAmount - (sell + commission_fee)
+                                }
 
-                for(i in getAllCurrency){
-                    if(i.currency.equals("EUR")){
-                        var getAmount = i.amount!!
-                        if(i.amount != 0.0 && getAmount >= sell){
-                            newSell = getAmount - sell
-                        }else {
-                            note = "Insufficient Balance!!"
-                            newSell = getAmount
+                            }else {
+                                note = "Insufficient Balance!!"
+                                newSell = getAmount
+                            }
+                        }else if(i.currency.equals("USD")){
+                            var getAmount = i.amount!!
+                            if(note.isEmpty()){
+
+                                newReceive = getAmount + receive
+                            }else{
+                                newReceive = getAmount
+                            }
+
                         }
-                    }else if(i.currency.equals("USD")){
-                        var getAmount = i.amount!!
-                        if(note.isEmpty()){
-
-                            newReceive = getAmount + receive
-                        }else{
-                            newReceive = getAmount
-                        }
-
                     }
+                    openDialog.value = true
+
+                }else{
+                    Toast.makeText(context,"Please enter a number greater than zero.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
 
-
-                openDialog.value = true
             },
                 modifier = Modifier
                     .width(200.dp)
@@ -393,7 +420,12 @@ fun SubmitExchange(
                     },
                     text = {
                         if(note.isEmpty()){
-                            Text("You have converted $sell" + " EUR to $receive" +  " $currencyChange")
+                            if(commission_new > 0){
+                                Text("You have converted $sell" + " EUR to $receive" +  " $currencyChange")
+                            }else{
+                                Text("You have converted $sell" + " EUR to $receive" +  " $currencyChange. Commission fee $commission_fee EUR")
+                            }
+
                         }else{
                             Text(note)
                         }
@@ -406,8 +438,13 @@ fun SubmitExchange(
                             colors = ButtonDefaults.buttonColors(Color.Cyan),
                             onClick = {
                                 if(note.isEmpty()){
-                                    val updateCurrencySell = CurrencyEntity(1, "EUR", newSell)
-                                    val updateCurrencyReceive = CurrencyEntity(2, currencyChange, newReceive)
+
+                                    commission_new -= 1
+
+                                   // println(commission_new)
+
+                                    val updateCurrencySell = CurrencyEntity(1, "EUR", newSell, commission_new)
+                                    val updateCurrencyReceive = CurrencyEntity(2, currencyChange, newReceive, commission_new)
                                     currencySqliteViewModel.UpdateCurrency(updateCurrencySell)
                                     currencySqliteViewModel.UpdateCurrency(updateCurrencyReceive)
 

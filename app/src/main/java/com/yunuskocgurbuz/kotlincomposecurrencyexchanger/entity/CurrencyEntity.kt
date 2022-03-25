@@ -12,7 +12,11 @@ data class CurrencyEntity(
     var currency: String?,
 
     @ColumnInfo(name = "amount")
-    var amount: Double?
+    var amount: Double?,
+
+    @ColumnInfo(name = "commission")
+    var commission: Int?
+
 
 ) {
     /*
